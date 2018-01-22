@@ -5,17 +5,76 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  Button,
   TouchableOpacity,
   View,
+  Alert,
 } from 'react-native';
 import { WebBrowser } from 'expo';
 
 import { MonoText } from '../components/StyledText';
 
+const FB_APP_ID = '1595686217152578';
+
+export const signInFacebook = () => {
+  return new Promise(function (resolve, reject) {
+  let accessToken = '';
+    Expo.Facebook.logInWithReadPermissionsAsync(FB_APP_ID, {
+    permissions: ['public_profile', 'email', 'user_birthday'],
+  })
+    .then((response) => {
+      switch (response.type) {
+        case 'success':
+          // token is a string giving the access token to use
+          // with Facebook HTTP API requests.
+          return response.token;
+       case 'cancel':
+         reject({
+           type: 'error',
+           msg: 'login canceled'
+          })
+         break;
+       default:
+         reject({
+           type: 'error',
+           msg: 'login failed'
+         })
+      }
+    })
+    .then((token) => {
+      accessToken = token;
+      return fetch(`https://graph.facebook.com/me?fields=id,name,email,birthday&access_token=${token}`);
+    })
+    .then((response) => {
+      console.log("DEBUG Response " + JSON.stringify(response));
+       return response.json();
+    })
+    .then((facebookJSONResponse) => {
+      console.log({ facebookJSONResponse });
+      if (facebookJSONResponse.hasOwnProperty('error')) {
+        reject({
+          type: 'error',
+        });
+      }
+      resolve({
+        type: 'success',
+        credentials: Object.assign({}, facebookJSONResponse, { accessToken })
+      });
+    })
+    .catch(function (error) {
+      console.log("DEBUG Error " + JSON.stringify(error));
+      reject({
+        type: 'error',
+        msg: 'Facebook login failed'
+      })
+    });
+   });
+  } 
+
 export default class HomeScreen extends React.Component {
   static navigationOptions = {
     header: null,
-  };
+  };  
 
   render() {
     return (
@@ -41,6 +100,10 @@ export default class HomeScreen extends React.Component {
               <MonoText style={styles.codeHighlightText}>screens/HomeScreen.js</MonoText>
             </View>
 
+            <Button
+              onPress={signInFacebook.bind(this)}
+              title="Facebook Login"/>
+
             <Text style={styles.getStartedText}>
               Change this text and your app will automatically reload.
             </Text>
@@ -48,7 +111,7 @@ export default class HomeScreen extends React.Component {
 
           <View style={styles.helpContainer}>
             <TouchableOpacity onPress={this._handleHelpPress} style={styles.helpLink}>
-              <Text style={styles.helpLinkText}>Help, it didn’t automatically reload!</Text>
+              <Text style={styles.helpLinkText}>Help, it didn't automatically reload!</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
