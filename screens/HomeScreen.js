@@ -16,65 +16,64 @@ import { MonoText } from '../components/StyledText';
 
 const FB_APP_ID = '1595686217152578';
 
-export const signInFacebook = () => {
-  return new Promise(function (resolve, reject) {
-  let accessToken = '';
-    Expo.Facebook.logInWithReadPermissionsAsync(FB_APP_ID, {
-    permissions: ['public_profile', 'email', 'user_birthday'],
-  })
-    .then((response) => {
-      switch (response.type) {
-        case 'success':
-          // token is a string giving the access token to use
-          // with Facebook HTTP API requests.
-          return response.token;
-       case 'cancel':
-         reject({
-           type: 'error',
-           msg: 'login canceled'
-          })
-         break;
-       default:
-         reject({
-           type: 'error',
-           msg: 'login failed'
-         })
-      }
-    })
-    .then((token) => {
-      accessToken = token;
-      return fetch(`https://graph.facebook.com/me?fields=id,name,email,birthday&access_token=${token}`);
-    })
-    .then((response) => {
-      console.log("DEBUG Response " + JSON.stringify(response));
-       return response.json();
-    })
-    .then((facebookJSONResponse) => {
-      console.log({ facebookJSONResponse });
-      if (facebookJSONResponse.hasOwnProperty('error')) {
-        reject({
-          type: 'error',
-        });
-      }
-      resolve({
-        type: 'success',
-        credentials: Object.assign({}, facebookJSONResponse, { accessToken })
-      });
-    })
-    .catch(function (error) {
-      console.log("DEBUG Error " + JSON.stringify(error));
-      reject({
-        type: 'error',
-        msg: 'Facebook login failed'
-      })
-    });
-   });
-  } 
-
 export default class HomeScreen extends React.Component {
   static navigationOptions = {
     header: null,
-  };  
+  };
+
+  state = {
+    result: null,
+  };
+
+  _signInFacebook = () => {
+    return new Promise(function (resolve, reject) {
+    let accessToken = '';
+      Expo.Facebook.logInWithReadPermissionsAsync(FB_APP_ID, {
+      permissions: ['public_profile', 'email', 'user_birthday'],
+    })
+      .then((response) => {
+        switch (response.type) {
+          case 'success':
+            // token is a string giving the access token to use
+            // with Facebook HTTP API requests.
+            return response.token;
+         case 'cancel':
+           reject({
+             type: 'error',
+             msg: 'login canceled'
+            })
+           break;
+         default:
+           reject({
+             type: 'error',
+             msg: 'login failed'
+           })
+        }
+      }).then((token) => {
+        accessToken = token;
+        return fetch(`https://graph.facebook.com/me?fields=id,name,email,picture.type(large),birthday&access_token=${token}`);
+      }).then((response) => {
+        console.log("DEBUG Response " + JSON.stringify(response));
+         return response.json();
+      }).then((facebookJSONResponse) => {
+        console.log("DEBUG Then " + JSON.stringify(facebookJSONResponse));
+        if (facebookJSONResponse.hasOwnProperty('error')) {
+          reject({
+            type: 'error',
+          });
+        } resolve({
+          type: 'success',
+          credentials: Object.assign({}, facebookJSONResponse, { accessToken })
+        });
+      }).catch(function (error) {
+        console.log("DEBUG Error " + JSON.stringify(error));
+        reject({
+          type: 'error',
+          msg: 'Facebook login failed'
+        })
+      });
+     });
+    }
 
   render() {
     return (
@@ -100,9 +99,19 @@ export default class HomeScreen extends React.Component {
               <MonoText style={styles.codeHighlightText}>screens/HomeScreen.js</MonoText>
             </View>
 
-            <Button
-              onPress={signInFacebook.bind(this)}
-              title="Facebook Login"/>
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+              {!this.state.result ? (
+                <Button title="Login with Facebook" onPress={async () => {
+                  const result = await this._signInFacebook();
+                  console.log("result " + JSON.stringify(result));
+                  this.setState({ result })
+                  console.log("state " + JSON.stringify(this.state.result.credentials.id));
+                  this._renderUserInfo()
+                }} />
+              ) : (
+                this._renderUserInfo()
+              )}
+            </View>              
 
             <Text style={styles.getStartedText}>
               Change this text and your app will automatically reload.
@@ -115,17 +124,22 @@ export default class HomeScreen extends React.Component {
             </TouchableOpacity>
           </View>
         </ScrollView>
-
-        {/* <View style={styles.tabBarInfoContainer}>
-          <Text style={styles.tabBarInfoText}>This is a tab bar. You can edit it in:</Text>
-
-          <View style={[styles.codeHighlightContainer, styles.navigationFilename]}>
-            <MonoText style={styles.codeHighlightText}>navigation/MainTabNavigator.js</MonoText>
-          </View>
-        </View> */}
       </View>
     );
   }
+
+  _renderUserInfo = () => {
+    return (
+      <View style={{ alignItems: 'center' }}>
+        <Image
+          source={{ uri: this.state.result.credentials.picture.data.url }}
+          style={{ width: 100, height: 100, borderRadius: 50 }}
+        />
+        <Text style={{ fontSize: 20 }}>{this.state.result.credentials.name}</Text>
+        <Text>ID: {this.state.result.credentials.id}</Text>
+      </View>
+    );
+  };  
 
   _maybeRenderDevelopmentModeWarning() {
     if (__DEV__) {
